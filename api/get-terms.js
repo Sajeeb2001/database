@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 
 let cached = global.mongoose;
 
-
 if (!cached) {
   cached = global.mongoose = { conn: null, promise: null };
 }
@@ -31,6 +30,17 @@ const Signature =
   mongoose.models.Signature || mongoose.model("Signature", SignatureSchema);
 
 export default async function handler(req, res) {
+
+  /* ✅ CORS FIX — ADDED ONLY */
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+  /* ✅ END CORS FIX */
+
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }

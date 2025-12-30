@@ -1,0 +1,8 @@
+{
+  "name": "servicem8signature-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "mongoose": "^8.0.0"
+  }
+}

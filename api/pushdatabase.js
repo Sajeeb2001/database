@@ -27,13 +27,36 @@ async function connectDB() {
   return cached.conn;
 }
 
-// Schema
+/**
+ * ✅ UPDATED SCHEMA
+ */
 const SignatureSchema = new mongoose.Schema({
-  jobUUID: String,
-  clientName: String,
-  termsText: String,
+  linkKey: { type: String, required: true, unique: true },
+
+  type: { type: String, enum: ["terms", "doc"], required: true },
+
+  jobUUID: { type: String, required: true },
+  clientUUID: { type: String },
+  clientName: { type: String },
+
+  termsText: { type: String },
+  docId: { type: String },
+
+  signatureStatus: {
+    type: String,
+    enum: ["pending", "signed"],
+    default: "pending"
+  },
+
+  signedAt: { type: Date },
   createdAt: { type: Date, default: Date.now }
 });
+
+/**
+ * ✅ INDEXES (IMPORTANT)
+ */
+SignatureSchema.index({ jobUUID: 1 });
+SignatureSchema.index({ linkKey: 1 });
 
 const Signature =
   mongoose.models.Signature ||
@@ -65,16 +88,53 @@ export default async function handler(req, res) {
   try {
     await connectDB();
 
-    const { jobUUID, clientName, termsText } = req.body;
+    /**
+     * ✅ EXTRACT ALL EXPECTED FIELDS
+     */
+    const {
+      linkKey,
+      type,
+      jobUUID,
+      clientUUID,
+      clientName,
+      termsText,
+      docId,
+      signatureStatus
+    } = req.body;
 
-    if (!jobUUID || !termsText) {
-      return res.status(400).json({ error: "Missing required fields" });
+    /**
+     * ✅ VALIDATION
+     */
+    if (!linkKey || !type || !jobUUID) {
+      return res.status(400).json({
+        error: "Missing required fields (linkKey, type, jobUUID)"
+      });
     }
 
+    if (type === "terms" && !termsText) {
+      return res.status(400).json({
+        error: "termsText is required for terms link"
+      });
+    }
+
+    if (type === "doc" && !docId) {
+      return res.status(400).json({
+        error: "docId is required for doc link"
+      });
+    }
+
+    /**
+     * ✅ CREATE RECORD
+     */
     const record = await Signature.create({
+      linkKey,
+      type,
       jobUUID,
+      clientUUID,
       clientName,
-      termsText
+      termsText,
+      docId,
+      signatureStatus: signatureStatus || "pending"
     });
 
     return res.status(200).json({
@@ -83,6 +143,16 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
+
+    /**
+     * ✅ HANDLE DUPLICATE linkKey
+     */
+    if (err.code === 11000) {
+      return res.status(409).json({
+        error: "Link already exists"
+      });
+    }
+
     console.error("SERVER ERROR:", err);
     return res.status(500).json({ error: "Server error" });
   }

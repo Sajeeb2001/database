@@ -1,5 +1,14 @@
 import mongoose from "mongoose";
 
+/**
+ * ✅ REQUIRED FOR VERCEL BODY PARSING
+ */
+export const config = {
+  api: {
+    bodyParser: true,
+  },
+};
+
 let cached = global.mongoose;
 
 if (!cached) {
@@ -18,60 +27,68 @@ async function connectDB() {
   return cached.conn;
 }
 
-// Schema (same collection: signatures)
+// Schema (same collection)
 const SignatureSchema = new mongoose.Schema({
+  linkKey: String,
   jobUUID: String,
+  clientUUID: String,
   clientName: String,
   termsText: String,
+  docId: String,
+  type: String,
+  signatureStatus: String,
+  clicked: Number,
   createdAt: { type: Date, default: Date.now },
+  signedAt: Date
 });
 
 const Signature =
-  mongoose.models.Signature || mongoose.model("Signature", SignatureSchema);
+  mongoose.models.Signature ||
+  mongoose.model("Signature", SignatureSchema);
 
 export default async function handler(req, res) {
 
-  /* ✅ CORS FIX — ADDED ONLY */
+  /**
+   * ✅ CORS HEADERS
+   */
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
-  /* ✅ END CORS FIX */
 
-  if (req.method !== "GET") {
+  if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
     await connectDB();
 
-    const { jobUUID } = req.query;
+    const { linkKey } = req.body;
 
-    if (!jobUUID) {
-      return res.status(400).json({ error: "Missing jobUUID" });
+    if (!linkKey) {
+      return res.status(400).json({ error: "Missing linkKey" });
     }
 
-    // Get the latest terms for this job
-    const record = await Signature.findOne({ jobUUID })
-      .sort({ createdAt: -1 })
-      .lean();
+    const record = await Signature.findOne({ linkKey });
 
     if (!record) {
-      return res.status(404).json({ error: "No terms found" });
+      return res.status(404).json({ error: "Invalid linkKey" });
     }
 
+    // Update signature status
+    record.signatureStatus = "done";
+    record.signedAt = new Date();
+    await record.save();
     return res.status(200).json({
-      jobUUID: record.jobUUID,
-      clientName: record.clientName || null,
-      termsText: record.termsText,
-      createdAt: record.createdAt,
+      success: true,
+      message: "Signature marked as done",
+      signedAt: record.signedAt
     });
-
   } catch (err) {
-    console.error(err);
+    console.error("SERVER ERROR:", err);
     return res.status(500).json({ error: "Server error" });
   }
 }

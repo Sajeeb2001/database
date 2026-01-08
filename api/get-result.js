@@ -52,7 +52,9 @@ export default async function handler(req, res) {
   try {
     await connectDB();
 
-    const { k } = req.query;
+    /* ✅ FIX: USE WHATWG URL API (NO url.parse) */
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const k = url.searchParams.get("k");
 
     if (!k) {
       return res.status(400).json({ error: "Missing link key" });
